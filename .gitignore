@@ -1,0 +1,8 @@
+data/
+backup/
+node_modules/
+.env
+*.db
+*.sqlite
+*.sqlite3
+server.log
