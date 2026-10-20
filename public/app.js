@@ -1,3 +1,4 @@
+const API_BASE = "https://f-base-api.onrender.com";
 const $ = (id) => document.getElementById(id);
 
 const authView = $("authView");
@@ -23,7 +24,7 @@ async function api(url, options = {}) {
   if (options.body) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = "Bearer " + token;
 
-  const response = await fetch(url, { ...options, headers });
+const response = await fetch(API_BASE + url, { ...options, headers });
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
