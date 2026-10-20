@@ -38,15 +38,16 @@ db.exec(`
     updated_at TEXT NOT NULL
   );
 `);
-
 function send(res, status, data) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "https://ifaizan2487-dev.github.io",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization"
   });
   res.end(JSON.stringify(data));
 }
-
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -129,7 +130,15 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${HOST}:${PORT}`);
     const route = url.pathname;
-
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": "https://ifaizan2487-dev.github.io",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Max-Age": "86400"
+      });
+      return res.end();
+    }
     if (req.method === "GET" && route === "/health") {
       return send(res, 200, {
         project: "F-Base",
@@ -147,11 +156,17 @@ const server = http.createServer(async (req, res) => {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return send(res, 400, { error: "Enter a valid email" });
       }
-      if (!/^[a-zA-Z0-9_]{3,24}$/.test(username))
-      if (password.length < 8 || password.length > 128) {
-        return send(res, 400, { error: "Password must be 8-128 characters" });
-      }
+if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) {
+  return send(res, 400, {
+    error: "Username must be 3-24 characters using letters, numbers, or underscores"
+  });
+}
 
+if (password.length < 8 || password.length > 128) {
+  return send(res, 400, {
+    error: "Password must be 8-128 characters"
+  });
+}
       const id = crypto.randomUUID();
       const passwordHash = await hashPassword(password);
       const now = new Date().toISOString();
