@@ -130,6 +130,47 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${HOST}:${PORT}`);
     const route = url.pathname;
+    if (req.method === "POST" && route === "/admin/cleanup-all") {
+      const expected = process.env.FBASE_CLEANUP_SECRET;
+      const supplied = req.headers["x-cleanup-secret"];
+
+      if (!expected) {
+        return send(res, 503, { error: "Cleanup is not configured" });
+      }
+
+      if (
+        typeof supplied !== "string" ||
+        supplied.length !== expected.length ||
+        !crypto.timingSafeEqual(
+          Buffer.from(supplied),
+          Buffer.from(expected)
+        )
+      ) {
+        return send(res, 401, { error: "Unauthorized" });
+      }
+
+      const counts = {
+        users: db.prepare("SELECT COUNT(*) AS n FROM users").get().n,
+        sessions: db.prepare("SELECT COUNT(*) AS n FROM sessions").get().n,
+        records: db.prepare("SELECT COUNT(*) AS n FROM user_records").get().n
+      };
+
+      try {
+        db.exec("BEGIN IMMEDIATE");
+        db.exec("DELETE FROM users");
+        db.exec("DELETE FROM sessions");
+        db.exec("DELETE FROM user_records");
+        db.exec("COMMIT");
+
+        return send(res, 200, {
+          message: "Cleanup completed",
+          deleted: counts
+        });
+      } catch (error) {
+        try { db.exec("ROLLBACK"); } catch (_) {}
+        throw error;
+      }
+    }
     if (req.method === "OPTIONS") {
       res.writeHead(204, {
         "Access-Control-Allow-Origin": "https://ifaizan2487-dev.github.io",
