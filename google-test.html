@@ -3,82 +3,182 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>F-Base Google Login Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>F-Base | Google Verification Test</title>
 
-  <script src="https://accounts.google.com/gsi/client"
-          async defer></script>
+  <script
+    src="https://accounts.google.com/gsi/client"
+    async defer>
+  </script>
 
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background: #101827;
-      color: white;
       font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
     }
 
     .card {
-      width: 90%;
-      max-width: 360px;
+      width: 100%;
+      max-width: 420px;
+      padding: 30px 24px;
       background: #1e293b;
-      padding: 28px;
-      border-radius: 16px;
+      border: 1px solid #334155;
+      border-radius: 20px;
       text-align: center;
     }
 
+    h1 {
+      margin: 0 0 8px;
+      color: #60a5fa;
+      font-size: 32px;
+    }
+
+    .subtitle {
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+
     #googleButton {
+      margin: 25px auto;
       display: flex;
       justify-content: center;
-      margin: 25px 0;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: bold;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     #status {
-      font-size: 14px;
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #0f172a;
       color: #93c5fd;
+      font-size: 14px;
       line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+
+    .note {
+      margin-top: 20px;
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.5;
     }
   </style>
 </head>
 
 <body>
+
   <div class="card">
     <h1>F-Base</h1>
-    <p>Google Sign-In Test</p>
+
+    <p class="subtitle">
+      Google Authentication Verification Test
+    </p>
 
     <div id="googleButton"></div>
 
-    <p id="status">Initializing Google Sign-In...</p>
+    <button id="verifyBtn" disabled>
+      Verify with F-Base Backend
+    </button>
+
+    <p id="status">
+      Initializing Google Sign-In...
+    </p>
+
+    <p class="note">
+      This page is for authentication testing only.
+      No F-Base account will be created.
+    </p>
   </div>
 
   <script>
-    const CLIENT_ID = "777077010487-4c5f2mvf1aiq3p0jcqatc6l5peoit2c3.apps.googleusercontent.com";
+    // =====================================
+    // CONFIGURATION
+    // =====================================
+
+    const GOOGLE_CLIENT_ID =
+      "https://777077010487-4c5f2mvf1aiq3p0jcqatc6l5peoit2c3.apps.googleusercontent.com";
+
+    const BACKEND_URL =
+      "https://script.google.com/macros/s/AKfycbxtLKcHrlvdJzaWBhT2d8yqWdWQtiah2WsD5AJ9NGwSHyBQPVCCkgaYsdanCFzQ9bj1Rg/exec";
+
+    // Stored in memory only, not localStorage.
+    let googleCredential = null;
+
+    const statusBox =
+      document.getElementById("status");
+
+    const verifyButton =
+      document.getElementById("verifyBtn");
+
+    function setStatus(message) {
+      statusBox.textContent = message;
+    }
+
+    // =====================================
+    // GOOGLE SIGN-IN CALLBACK
+    // =====================================
 
     function handleGoogleResponse(response) {
       if (!response || !response.credential) {
-        document.getElementById("status").textContent =
-          "Google sign-in failed.";
+        setStatus("Google Sign-In failed.");
         return;
       }
 
-      // Never print or expose the credential token.
-      document.getElementById("status").textContent =
-        "Google credential received successfully! " +
-        "F-Base backend verification is still pending.";
+      googleCredential = response.credential;
+
+      verifyButton.disabled = false;
+
+      setStatus(
+        "Google credential received! " +
+        "Click Verify with F-Base Backend."
+      );
     }
 
+    // =====================================
+    // INITIALIZE GOOGLE SIGN-IN
+    // =====================================
+
     window.addEventListener("load", function () {
+
       if (!window.google || !google.accounts) {
-        document.getElementById("status").textContent =
-          "Google Sign-In library could not load.";
+        setStatus("Google Sign-In library failed to load.");
+        return;
+      }
+
+      if (GOOGLE_CLIENT_ID.includes("PASTE_YOUR")) {
+        setStatus("Configure the Google Client ID first.");
         return;
       }
 
       google.accounts.id.initialize({
-        client_id: CLIENT_ID,
+        client_id: GOOGLE_CLIENT_ID,
         callback: handleGoogleResponse
       });
 
@@ -87,14 +187,65 @@
         {
           theme: "filled_black",
           size: "large",
-          text: "continue_with",
-          shape: "rectangular"
+          shape: "rectangular",
+          text: "continue_with"
         }
       );
 
-      document.getElementById("status").textContent =
-        "Choose your Google account to test sign-in.";
+      setStatus("Choose your Google account.");
+    });
+
+    // =====================================
+    // BACKEND VERIFICATION
+    // =====================================
+
+    verifyButton.addEventListener("click", function () {
+
+      if (!googleCredential) {
+        setStatus("Please sign in with Google first.");
+        return;
+      }
+
+      if (
+        !BACKEND_URL.startsWith("https://script.google.com/") ||
+        !BACKEND_URL.includes("/exec")
+      ) {
+        setStatus("Configure a valid Apps Script Web App URL.");
+        return;
+      }
+
+      // Send credential in POST body, not URL.
+      // A normal form navigation avoids fetch CORS issues.
+
+      const form = document.createElement("form");
+
+      form.method = "POST";
+      form.action = BACKEND_URL;
+      form.target = "_blank";
+      form.style.display = "none";
+
+      const field = document.createElement("input");
+
+      field.type = "hidden";
+      field.name = "credential";
+      field.value = googleCredential;
+
+      form.appendChild(field);
+      document.body.appendChild(form);
+
+      form.submit();
+      form.remove();
+
+      setStatus(
+        "Verification request submitted. " +
+        "Check the newly opened tab for the result."
+      );
+
+      // Clear token from page memory after submission.
+      googleCredential = null;
+      verifyButton.disabled = true;
     });
   </script>
+
 </body>
 </html>
