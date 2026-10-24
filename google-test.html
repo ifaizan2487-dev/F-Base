@@ -1,0 +1,100 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>F-Base Google Login Test</title>
+
+  <script src="https://accounts.google.com/gsi/client"
+          async defer></script>
+
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #101827;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    .card {
+      width: 90%;
+      max-width: 360px;
+      background: #1e293b;
+      padding: 28px;
+      border-radius: 16px;
+      text-align: center;
+    }
+
+    #googleButton {
+      display: flex;
+      justify-content: center;
+      margin: 25px 0;
+    }
+
+    #status {
+      font-size: 14px;
+      color: #93c5fd;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>F-Base</h1>
+    <p>Google Sign-In Test</p>
+
+    <div id="googleButton"></div>
+
+    <p id="status">Initializing Google Sign-In...</p>
+  </div>
+
+  <script>
+    const CLIENT_ID = "PASTE_YOUR_WEB_CLIENT_ID_HERE";
+
+    function handleGoogleResponse(response) {
+      if (!response || !response.credential) {
+        document.getElementById("status").textContent =
+          "Google sign-in failed.";
+        return;
+      }
+
+      // Never print or expose the credential token.
+      document.getElementById("status").textContent =
+        "Google credential received successfully! " +
+        "F-Base backend verification is still pending.";
+    }
+
+    window.addEventListener("load", function () {
+      if (!window.google || !google.accounts) {
+        document.getElementById("status").textContent =
+          "Google Sign-In library could not load.";
+        return;
+      }
+
+      google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: handleGoogleResponse
+      });
+
+      google.accounts.id.renderButton(
+        document.getElementById("googleButton"),
+        {
+          theme: "filled_black",
+          size: "large",
+          text: "continue_with",
+          shape: "rectangular"
+        }
+      );
+
+      document.getElementById("status").textContent =
+        "Choose your Google account to test sign-in.";
+    });
+  </script>
+</body>
+</html>
