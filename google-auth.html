@@ -59,16 +59,16 @@
         return;
       }
 
-      if (!window.opener || window.opener.closed) {
-        showStatus("Please reopen Google Sign-In from F-Base.");
-        return;
-      }
+      if (!parentOrigin || !parentOrigin.startsWith("https://")) {
+  showStatus("Invalid F-Base connection.");
+  return;
+}
 
-      window.opener.postMessage({
+window.opener.postMessage({
         type: "FBASE_GOOGLE_CREDENTIAL",
         state: state,
         credential: response.credential
-      }, "*");
+     }, parentOrigin);
 
       showStatus("Google response sent. You can close this window.");
       setTimeout(() => window.close(), 800);
