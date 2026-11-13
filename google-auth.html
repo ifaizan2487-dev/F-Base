@@ -1,0 +1,117 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>F-Base Google Sign-In</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #0b1020;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+    main {
+      background: #151d30;
+      padding: 30px;
+      border-radius: 16px;
+      text-align: center;
+      width: min(340px, 85%);
+    }
+    #googleButton {
+      display: flex;
+      justify-content: center;
+      margin-top: 24px;
+    }
+    #status {
+      color: #aab6cc;
+      font-size: 14px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h2>F-Base</h2>
+    <p>Continue securely with Google</p>
+    <div id="googleButton"></div>
+    <p id="status">Loading Google Sign-In...</p>
+  </main>
+
+  <script>
+    const CLIENT_ID = "PASTE_YOUR_WEB_CLIENT_ID_HERE";
+    const params = new URLSearchParams(location.search);
+    const state = params.get("state");
+
+    function showStatus(message) {
+      document.getElementById("status").textContent = message;
+    }
+
+    function handleGoogleResponse(response) {
+      if (!response || !response.credential) {
+        showStatus("Google verification failed.");
+        return;
+      }
+
+      if (!window.opener || window.opener.closed) {
+        showStatus("Please reopen Google Sign-In from F-Base.");
+        return;
+      }
+
+      window.opener.postMessage({
+        type: "FBASE_GOOGLE_CREDENTIAL",
+        state: state,
+        credential: response.credential
+      }, "*");
+
+      showStatus("Google response sent. You can close this window.");
+      setTimeout(() => window.close(), 800);
+    }
+
+    function initializeGoogle() {
+      if (!window.google || !google.accounts || !state) {
+        showStatus("Google Sign-In could not initialize. Reopen from F-Base.");
+        return;
+      }
+
+      google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: handleGoogleResponse,
+        auto_select: false
+      });
+
+      google.accounts.id.renderButton(
+        document.getElementById("googleButton"),
+        {
+          theme: "filled_blue",
+          size: "large",
+          shape: "rectangular",
+          text: "continue_with",
+          width: 260
+        }
+      );
+
+      showStatus("Choose your Google account.");
+    }
+
+    window.addEventListener("load", () => {
+      let attempts = 0;
+      const timer = setInterval(() => {
+        attempts++;
+        if (window.google && google.accounts) {
+          clearInterval(timer);
+          initializeGoogle();
+        } else if (attempts >= 30) {
+          clearInterval(timer);
+          showStatus("Google Sign-In loading failed. Refresh this page.");
+        }
+      }, 300);
+    });
+  </script>
+</body>
+</html>
