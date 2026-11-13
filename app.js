@@ -1,3 +1,97 @@
+
+/* F-BASE APPS SCRIPT BRIDGE */
+
+const FBASE_BRIDGE_URL =
+  "https://script.google.com/macros/s/AKfycbwYCaXbnJwE6cA6xUcbj7unhka8MMlSfQTSvzcJhSz0KoKTWLUGwNat2pTfARD8mGIl/exec?bridge=1";
+
+const FBASE_PARENT_ORIGIN =
+  "https://ifaizan2487-dev.github.io";
+
+let fbaseBridgeFrame = null;
+let fbaseBridgeReady = false;
+let fbaseBridgeRequests = new Map();
+
+function fbaseStartBridge() {
+  if (fbaseBridgeFrame) return;
+
+  fbaseBridgeFrame = document.createElement("iframe");
+  fbaseBridgeFrame.src = FBASE_BRIDGE_URL;
+  fbaseBridgeFrame.title = "F-Base backend connection";
+  fbaseBridgeFrame.style.display = "none";
+
+  document.body.appendChild(fbaseBridgeFrame);
+
+  window.addEventListener("message", function (event) {
+    if (event.origin !== new URL(FBASE_BRIDGE_URL).origin) return;
+    if (event.source !== fbaseBridgeFrame.contentWindow) return;
+
+    const data = event.data;
+    if (!data || typeof data !== "object") return;
+
+    if (data.type === "FBASE_BRIDGE_READY") {
+      fbaseBridgeReady = true;
+      return;
+    }
+
+    if (
+      data.type === "FBASE_BRIDGE_RESULT" ||
+      data.type === "FBASE_BRIDGE_ERROR"
+    ) {
+      const pending = fbaseBridgeRequests.get(data.requestId);
+      if (!pending) return;
+
+      clearTimeout(pending.timeout);
+      fbaseBridgeRequests.delete(data.requestId);
+
+      if (data.type === "FBASE_BRIDGE_ERROR") {
+        pending.reject(new Error(data.error || "Backend error"));
+      } else {
+        pending.resolve(data.result);
+      }
+    }
+  });
+
+  fbaseBridgeFrame.addEventListener("load", function () {
+    fbaseBridgeFrame.contentWindow.postMessage({
+      type: "FBASE_BRIDGE_INIT",
+      requestId: "fbase-init"
+    }, FBASE_PARENT_ORIGIN);
+  });
+}
+
+function fbaseBridgeCall(action, payload = {}) {
+  return new Promise(function (resolve, reject) {
+    if (!fbaseBridgeFrame || !fbaseBridgeReady) {
+      reject(new Error("F-Base backend is not connected yet."));
+      return;
+    }
+
+    const requestId =
+      "fbase-" + Date.now() + "-" +
+      Math.random().toString(36).slice(2);
+
+    const timeout = setTimeout(function () {
+      fbaseBridgeRequests.delete(requestId);
+      reject(new Error("F-Base backend request timed out."));
+    }, 20000);
+
+    fbaseBridgeRequests.set(requestId, {
+      resolve: resolve,
+      reject: reject,
+      timeout: timeout
+    });
+
+    fbaseBridgeFrame.contentWindow.postMessage({
+      type: "FBASE_BRIDGE_ACTION",
+      requestId: requestId,
+      action: action,
+      payload: payload
+    }, FBASE_PARENT_ORIGIN);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", fbaseStartBridge);
+
 const API_BASE = "https://f-base-api.onrender.com";
 const $ = (id) => document.getElementById(id);
 
