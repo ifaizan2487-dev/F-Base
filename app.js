@@ -2,8 +2,7 @@
 /* =====================================================
    F-BASE - COMPLETE APP.JS
    Frontend: GitHub Pages
-   Backend: Google Apps Script
-   Storage: Google Drive registry (account metadata)
+   Backend: Google Apps Script Bridge
 ===================================================== */
 
 "use strict";
@@ -12,6 +11,8 @@
 
 const FBASE_BRIDGE_URL =
   "https://script.google.com/macros/s/AKfycbwYCaXbnJwE6cA6xUcbj7unhka8MMlSfQTSvzcJhSz0KoKTWLUGwNat2pTfARD8mGIl/exec?bridge=1";
+
+const FBASE_BRIDGE_ORIGIN = new URL(FBASE_BRIDGE_URL).origin;
 
 const FBASE_PARENT_ORIGIN =
   "https://ifaizan2487-dev.github.io";
@@ -30,6 +31,10 @@ const registerForm = $("registerForm");
 const authMessage = $("authMessage");
 const recordMessage = $("recordMessage");
 const recordsList = $("recordsList");
+
+const loginTab = $("loginTab");
+const registerTab = $("registerTab");
+const googleButton = $("googleSignInButton");
 
 /* ---------------- APP STATE ---------------- */
 
@@ -52,6 +57,60 @@ function message(element, text, type = "") {
 }
 
 /* =====================================================
+   AUTHENTICATION SCREENS
+===================================================== */
+
+function showLogin() {
+  if (authView) authView.hidden = false;
+  if (dashboardView) dashboardView.hidden = true;
+
+  if (loginForm) loginForm.hidden = false;
+  if (registerForm) registerForm.hidden = true;
+
+  if (loginTab) loginTab.classList.add("active");
+  if (registerTab) registerTab.classList.remove("active");
+
+  message(authMessage, "");
+}
+
+function showRegister() {
+  if (authView) authView.hidden = false;
+  if (dashboardView) dashboardView.hidden = true;
+
+  if (loginForm) loginForm.hidden = true;
+  if (registerForm) registerForm.hidden = false;
+
+  if (loginTab) loginTab.classList.remove("active");
+  if (registerTab) registerTab.classList.add("active");
+
+  message(authMessage, "");
+}
+
+function showDashboard(user) {
+  currentUser = user;
+
+  if (authView) authView.hidden = true;
+  if (dashboardView) dashboardView.hidden = false;
+
+  const userName = $("userName");
+
+  if (userName) {
+    userName.textContent =
+      user.username || user.email || "F-Base User";
+  }
+
+  if (recordsList) recordsList.replaceChildren();
+
+  const recordCount = $("recordCount");
+  if (recordCount) recordCount.textContent = "0";
+
+  message(
+    recordMessage,
+    "Personal Google Drive storage is not connected yet."
+  );
+}
+
+/* =====================================================
    APPS SCRIPT BRIDGE
 ===================================================== */
 
@@ -65,20 +124,24 @@ function fbaseStartBridge() {
   fbaseBridgeFrame.setAttribute("aria-hidden", "true");
   fbaseBridgeFrame.style.display = "none";
 
-  document.body.appendChild(fbaseBridgeFrame);
-
   window.addEventListener("message", function (event) {
-    if (event.origin !== new URL(FBASE_BRIDGE_URL).origin) return;
+    if (event.origin !== FBASE_BRIDGE_ORIGIN) return;
 
-    if (event.source !== fbaseBridgeFrame.contentWindow) return;
+    if (!fbaseBridgeFrame ||
+        event.source !== fbaseBridgeFrame.contentWindow) return;
 
     const data = event.data;
 
     if (!data || typeof data !== "object") return;
 
     if (data.type === "FBASE_BRIDGE_READY") {
+      if (fbaseBridgeReady) return;
+
       fbaseBridgeReady = true;
+
       console.log("F-Base backend bridge ready.");
+
+      restoreSession();
       return;
     }
 
@@ -109,9 +172,11 @@ function fbaseStartBridge() {
         type: "FBASE_BRIDGE_INIT",
         requestId: "fbase-init"
       },
-      FBASE_PARENT_ORIGIN
+      FBASE_BRIDGE_ORIGIN
     );
   });
+
+  document.body.appendChild(fbaseBridgeFrame);
 }
 
 function fbaseBridgeCall(action, payload = {}) {
@@ -119,7 +184,7 @@ function fbaseBridgeCall(action, payload = {}) {
     if (!fbaseBridgeFrame || !fbaseBridgeReady) {
       reject(
         new Error(
-          "F-Base backend is not connected. Refresh the page and try again."
+          "F-Base backend is not connected. Refresh and try again."
         )
       );
       return;
@@ -133,75 +198,25 @@ function fbaseBridgeCall(action, payload = {}) {
 
     const timeout = setTimeout(function () {
       fbaseBridgeRequests.delete(requestId);
-
       reject(new Error("Backend request timed out."));
     }, 20000);
 
     fbaseBridgeRequests.set(requestId, {
-      resolve: resolve,
-      reject: reject,
-      timeout: timeout
+      resolve,
+      reject,
+      timeout
     });
 
     fbaseBridgeFrame.contentWindow.postMessage(
       {
         type: "FBASE_BRIDGE_ACTION",
-        requestId: requestId,
-        action: action,
-        payload: payload
+        requestId,
+        action,
+        payload
       },
-      FBASE_PARENT_ORIGIN
+      FBASE_BRIDGE_ORIGIN
     );
   });
-}
-
-/* =====================================================
-   AUTHENTICATION SCREENS
-===================================================== */
-
-function showLogin() {
-  authView.hidden = false;
-  dashboardView.hidden = true;
-
-  loginForm.hidden = false;
-  registerForm.hidden = true;
-
-  $("loginTab").classList.add("active");
-  $("registerTab").classList.remove("active");
-
-  message(authMessage, "");
-}
-
-function showRegister() {
-  authView.hidden = false;
-  dashboardView.hidden = true;
-
-  loginForm.hidden = true;
-  registerForm.hidden = false;
-
-  $("loginTab").classList.remove("active");
-  $("registerTab").classList.add("active");
-
-  message(authMessage, "");
-}
-
-function showDashboard(user) {
-  currentUser = user;
-
-  authView.hidden = true;
-  dashboardView.hidden = false;
-
-  $("userName").textContent =
-    user.username || user.email || "F-Base User";
-
-  recordsList.replaceChildren();
-
-  $("recordCount").textContent = "0";
-
-  message(
-    recordMessage,
-    "Personal Google Drive storage is not connected yet."
-  );
 }
 
 /* =====================================================
@@ -212,7 +227,7 @@ function startGoogleSignIn() {
   if (!fbaseBridgeReady) {
     message(
       authMessage,
-      "Connecting to F-Base backend. Please wait a moment.",
+      "Connecting to F-Base backend. Please wait.",
       "error"
     );
     return;
@@ -251,28 +266,25 @@ function startGoogleSignIn() {
   message(authMessage, "Opening Google Sign-In...");
 }
 
-/* ---------------- RECEIVE GOOGLE CREDENTIAL ---------------- */
+/* ---------------- GOOGLE CREDENTIAL RECEIVER ---------------- */
 
 window.addEventListener("message", async function (event) {
   if (event.origin !== FBASE_PARENT_ORIGIN) return;
 
-  if (
-    event.source !== googlePopup &&
-    event.source !== window
-  ) {
-    return;
-  }
+  // Only accept messages from the actual Google popup.
+  if (!googlePopup || event.source !== googlePopup) return;
 
   const data = event.data;
 
   if (!data || data.type !== "FBASE_GOOGLE_CREDENTIAL") return;
 
-  const expectedState = sessionStorage.getItem("fbase_google_state");
+  const expectedState =
+    sessionStorage.getItem("fbase_google_state");
 
   if (!expectedState || data.state !== expectedState) {
     message(
       authMessage,
-      "Google sign-in verification failed. Please try again.",
+      "Google sign-in verification failed. Try again.",
       "error"
     );
     return;
@@ -296,7 +308,7 @@ window.addEventListener("message", async function (event) {
 
   try {
     const result = await fbaseBridgeCall("google_login", {
-      credential: credential
+      credential
     });
 
     if (!result || !result.ok) {
@@ -325,8 +337,6 @@ window.addEventListener("message", async function (event) {
       googlePopup.close();
     }
 
-    loginForm.reset();
-
     showDashboard(user);
 
   } catch (error) {
@@ -338,15 +348,23 @@ window.addEventListener("message", async function (event) {
    TAB BUTTONS
 ===================================================== */
 
-$("loginTab").addEventListener("click", showLogin);
+if (loginTab) {
+  loginTab.addEventListener("click", function (event) {
+    event.preventDefault();
+    showLogin();
+  });
+}
 
-$("registerTab").addEventListener("click", showRegister);
+if (registerTab) {
+  registerTab.addEventListener("click", function (event) {
+    event.preventDefault();
+    showRegister();
+  });
+}
 
 /* =====================================================
    GOOGLE BUTTON
 ===================================================== */
-
-const googleButton = $("googleSignInButton");
 
 if (googleButton) {
   googleButton.addEventListener("click", startGoogleSignIn);
@@ -356,76 +374,80 @@ if (googleButton) {
    REGISTRATION
 ===================================================== */
 
-registerForm.addEventListener("submit", function (event) {
-  event.preventDefault();
+if (registerForm) {
+  registerForm.addEventListener("submit", function (event) {
+    event.preventDefault();
 
-  message(
-    authMessage,
-    "Registration is temporarily disabled while account security is being completed.",
-    "error"
-  );
-});
+    message(
+      authMessage,
+      "Registration is temporarily disabled while account security is being completed.",
+      "error"
+    );
+  });
+}
 
 /* =====================================================
    USERNAME + PASSWORD LOGIN
 ===================================================== */
 
-loginForm.addEventListener("submit", async function (event) {
-  event.preventDefault();
+if (loginForm) {
+  loginForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
 
-  const button = loginForm.querySelector('button[type="submit"]');
+    const button = loginForm.querySelector('button[type="submit"]');
 
-  button.disabled = true;
+    if (button) button.disabled = true;
 
-  message(authMessage, "Signing in...");
+    message(authMessage, "Signing in...");
 
-  try {
-    const result = await fbaseBridgeCall("login", {
-      username: $("loginIdentity").value.trim(),
-      password: $("loginPassword").value
-    });
+    try {
+      const result = await fbaseBridgeCall("login", {
+        username: $("loginIdentity").value.trim(),
+        password: $("loginPassword").value
+      });
 
-    if (!result || !result.ok) {
-      throw new Error(
-        result && result.error
-          ? result.error
-          : "Login failed."
-      );
+      if (!result || !result.ok) {
+        throw new Error(
+          result && result.error
+            ? result.error
+            : "Login failed."
+        );
+      }
+
+      const sessionToken =
+        result.sessionToken || result.token || null;
+
+      const user = result.account || result.user || null;
+
+      if (!user) {
+        throw new Error("Account information missing.");
+      }
+
+      if (sessionToken) {
+        token = sessionToken;
+        sessionStorage.setItem("fbase_token", token);
+      }
+
+      loginForm.reset();
+      showDashboard(user);
+
+    } catch (error) {
+      message(authMessage, error.message, "error");
+    } finally {
+      if (button) button.disabled = false;
     }
-
-    const sessionToken =
-      result.sessionToken || result.token || null;
-
-    const user = result.account || result.user || null;
-
-    if (!user) {
-      throw new Error("Account information missing.");
-    }
-
-    if (sessionToken) {
-      token = sessionToken;
-      sessionStorage.setItem("fbase_token", token);
-    }
-
-    loginForm.reset();
-
-    showDashboard(user);
-
-  } catch (error) {
-    message(authMessage, error.message, "error");
-  } finally {
-    button.disabled = false;
-  }
-});
+  });
+}
 
 /* =====================================================
-   RECORDS - WAITING FOR PERSONAL DRIVE API
+   RECORDS - PERSONAL DRIVE API PENDING
 ===================================================== */
 
 async function loadRecords() {
-  recordsList.replaceChildren();
+  if (recordsList) recordsList.replaceChildren();
 
-  $("recordCount").textContent = "0";
+  const recordCount = $("recordCount");
+  if (recordCount) recordCount.textContent = "0";
 
   message(
     recordMessage,
@@ -473,14 +495,19 @@ async function logout() {
 
   sessionStorage.removeItem("fbase_token");
 
-  recordsList.replaceChildren();
+  if (recordsList) recordsList.replaceChildren();
 
-  $("recordCount").textContent = "0";
+  const recordCount = $("recordCount");
+  if (recordCount) recordCount.textContent = "0";
 
   showLogin();
 }
 
-$("logoutButton").addEventListener("click", logout);
+const logoutButton = $("logoutButton");
+
+if (logoutButton) {
+  logoutButton.addEventListener("click", logout);
+}
 
 /* =====================================================
    SESSION RESTORE
@@ -492,14 +519,7 @@ async function restoreSession() {
     return;
   }
 
-  if (!fbaseBridgeReady) {
-    showLogin();
-    message(
-      authMessage,
-      "Backend connection is required. Please sign in again."
-    );
-    return;
-  }
+  if (!fbaseBridgeReady) return;
 
   try {
     const result = await fbaseBridgeCall("me", {
@@ -526,28 +546,19 @@ async function restoreSession() {
 }
 
 /* =====================================================
-   INITIALIZE
+   INITIALIZATION
 ===================================================== */
 
 function initializeFBase() {
   showLogin();
-
   fbaseStartBridge();
-
-  // Wait for bridge readiness before attempting session restore.
-  window.addEventListener("message", function (event) {
-    if (event.origin !== new URL(FBASE_BRIDGE_URL).origin) return;
-    if (!fbaseBridgeFrame ||
-        event.source !== fbaseBridgeFrame.contentWindow) return;
-
-    if (event.data && event.data.type === "FBASE_BRIDGE_READY") {
-      restoreSession();
-    }
-  });
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeFBase);
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeFBase
+  );
 } else {
   initializeFBase();
 }
